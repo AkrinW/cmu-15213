@@ -4,14 +4,13 @@ FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# 更新包列表并安装 SQLite 和其他必要的工具
 RUN apt-get update && apt-get install -y \
     build-essential \
     binutils \
     gdb \
     gcc-multilib \
     valgrind \
-    python \
+    python3 \
     vim \
     && rm -rf /var/lib/apt/lists/*
 
