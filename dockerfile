@@ -7,13 +7,16 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Set working directory
 WORKDIR /root
 
-
 RUN apt-get update && apt-get install -y git
 
-# RUN git config --global http.proxy http://127.0.0.1:7890
-# RUN git config --global https.proxy http://127.0.0.1:7890
+RUN git config --global http.proxy http://127.0.0.1:7890
+RUN git config --global https.proxy http://127.0.0.1:7890
 
-# RUN git clone https://github.com/AkrinW/cmu-15213.git
+RUN git clone https://github.com/AkrinW/cmu-15213.git
+
+# ENV HTTP_PROXY="http://host.docker.internal:7890"
+# ENV HTTPS_PROXY="http://host.docker.internal:7890"
+# ENV NO_PROXY="localhost,127.0.0.1,.local"
 
 
 RUN apt-get update && apt-get install -y \
@@ -37,9 +40,11 @@ RUN chmod 600 /root/.ssh/id_rsa
 RUN chmod 600 /root/.ssh/config
 
 # # Add GitHub's SSH key to known_hosts to prevent host authenticity prompt
-RUN ssh-keyscan github.com >> /root/.ssh/known_hosts
+# RUN ssh-keyscan github.com >> /root/.ssh/known_hosts
 
-RUN git clone git@github.com:AkrinW/cmu-15213.git
+# RUN ssh -T git@github.com
+
+# RUN git clone git@github.com:AkrinW/cmu-15213.git
 
 # 设置默认命令为 bash
 CMD ["/bin/bash"]
