@@ -45,6 +45,9 @@ RUN chmod 600 /root/.ssh/config
 # RUN ssh -T git@github.com
 
 # RUN git clone git@github.com:AkrinW/cmu-15213.git
+RUN git config --global http.proxy http://host.docker.internal:7890
+RUN git config --global https.proxy http://host.docker.internal:7890
+RUN cd cmu-15213 && git remote set-url origin git@github.com:AkrinW/cmu-15213.git
 
 # 设置默认命令为 bash
 CMD ["/bin/bash"]
