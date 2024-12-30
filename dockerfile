@@ -10,10 +10,10 @@ WORKDIR /root
 
 RUN apt-get update && apt-get install -y git
 
-RUN git config --global http.proxy http://127.0.0.1:7890
-RUN git config --global https.proxy http://127.0.0.1:7890
+# RUN git config --global http.proxy http://127.0.0.1:7890
+# RUN git config --global https.proxy http://127.0.0.1:7890
 
-RUN git clone https://github.com/AkrinW/cmu-15213.git
+# RUN git clone https://github.com/AkrinW/cmu-15213.git
 
 
 RUN apt-get update && apt-get install -y \
@@ -22,6 +22,7 @@ RUN apt-get update && apt-get install -y \
     gdb \
     gcc-multilib \
     git \
+    netcat \
     valgrind \
     python3 \
     vim \
@@ -31,12 +32,14 @@ RUN apt-get update && apt-get install -y \
 
 # Copy the SSH private key and set the correct permissions
 COPY id_rsa /root/.ssh/id_rsa
+COPY config /root/.ssh/config
 RUN chmod 600 /root/.ssh/id_rsa
+RUN chmod 600 /root/.ssh/config
 
 # # Add GitHub's SSH key to known_hosts to prevent host authenticity prompt
-# RUN ssh-keyscan github.com >> /root/.ssh/known_hosts
+RUN ssh-keyscan github.com >> /root/.ssh/known_hosts
 
-# RUN git clone git@github.com:AkrinW/cmu-15213.git
+RUN git clone git@github.com:AkrinW/cmu-15213.git
 
 # 设置默认命令为 bash
 CMD ["/bin/bash"]

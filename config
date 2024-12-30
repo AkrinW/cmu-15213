@@ -1,0 +1,7 @@
+Host github.com
+  ProxyCommand nc -X 5 -x host.docker.internal:7890 %h %p
+  User git
+  Port 443
+  Hostname ssh.github.com
+  IdentityFile ~/.ssh/id_rsa
+  TCPKeepAlive yes
