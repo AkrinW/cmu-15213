@@ -142,8 +142,9 @@ NOTES:
  *   Max ops: 14
  *   Rating: 1
  */
+// simulate | : x | y = ~(~x&~y)
 int bitXor(int x, int y) {
-  return 2;
+  return ~(~(~x&y)&~(x&~y));
 }
 /* 
  * tmin - return minimum two's complement integer 
@@ -152,9 +153,7 @@ int bitXor(int x, int y) {
  *   Rating: 1
  */
 int tmin(void) {
-
-  return 2;
-
+  return 1 << 31;
 }
 //2
 /*
@@ -165,7 +164,7 @@ int tmin(void) {
  *   Rating: 1
  */
 int isTmax(int x) {
-  return 2;
+    return !!(x+1) & !(x+1+x+1);     // y 不是 0 且 x + y == -1
 }
 /* 
  * allOddBits - return 1 if all odd-numbered bits in word set to 1
@@ -176,7 +175,11 @@ int isTmax(int x) {
  *   Rating: 2
  */
 int allOddBits(int x) {
-  return 2;
+    // Step 1: Construct the mask
+    int mask = 0xAA | (0xAA << 8) | (0xAA << 16) | (0xAA << 24);
+
+    // Step 2: Check if all odd bits are set
+    return !((x & mask) ^ mask);
 }
 /* 
  * negate - return -x 
@@ -186,7 +189,7 @@ int allOddBits(int x) {
  *   Rating: 2
  */
 int negate(int x) {
-  return 2;
+  return ~x+1;
 }
 //3
 /* 
@@ -198,8 +201,9 @@ int negate(int x) {
  *   Max ops: 15
  *   Rating: 3
  */
+// x >= 0x30    x-0x30>= 0    x + -0x30 >= 0
 int isAsciiDigit(int x) {
-  return 2;
+  return !((x + (~0x30 + 1)) >> 31) & !((0x39+(~x+1))>>31);
 }
 /* 
  * conditional - same as x ? y : z 
@@ -208,8 +212,11 @@ int isAsciiDigit(int x) {
  *   Max ops: 16
  *   Rating: 3
  */
+// x=0 z, x!=0 y
 int conditional(int x, int y, int z) {
-  return 2;
+  // x = ~!!x+1;
+  x = (!!x << 31) >> 31;  // 将布尔值扩展为全 0 或全 1 掩码
+  return (~x&z)|(x&y);
 }
 /* 
  * isLessOrEqual - if x <= y  then return 1, else return 0 
@@ -219,7 +226,7 @@ int conditional(int x, int y, int z) {
  *   Rating: 3
  */
 int isLessOrEqual(int x, int y) {
-  return 2;
+  return !((y + (~x + 1)) >> 31);
 }
 //4
 /* 
@@ -231,7 +238,8 @@ int isLessOrEqual(int x, int y) {
  *   Rating: 4 
  */
 int logicalNeg(int x) {
-  return 2;
+    int negX = ~x + 1;           // x 的相反数
+    return ((x | negX) >> 31) + 1;
 }
 /* howManyBits - return the minimum number of bits required to represent x in
  *             two's complement
@@ -246,7 +254,24 @@ int logicalNeg(int x) {
  *  Rating: 4
  */
 int howManyBits(int x) {
-  return 0;
+    int b,c,d,e,f,g;
+    int sign = x >> 31;          // 获取符号位：0 表示正数，-1 表示负数
+    x = (sign & ~x) | (~sign & x);  // 如果是负数，取反，否则保持不变
+
+    // 用二分查找法确定最高有效位的位置
+    b = !!(x >> 16) << 4;      // 如果高 16 位非零，则需要至少 16 位
+    x = x >> b;                   // 把最高的 16 位移除
+    c = !!(x >> 8) << 3;        // 如果剩下的高 8 位非零，则需要至少 8 位
+    x = x >> c;                    // 把最高的 8 位移除
+    d = !!(x >> 4) << 2;        // 如果剩下的高 4 位非零，则需要至少 4 位
+    x = x >> d;                    // 把最高的 4 位移除
+    e = !!(x >> 2) << 1;        // 如果剩下的高 2 位非零，则需要至少 2 位
+    x = x >> e;                    // 把最高的 2 位移除
+    f = !!(x >> 1);             // 如果剩下的高 1 位非零，则需要至少 1 位
+    x = x >> f;                    // 把最高的 1 位移除
+    g = x;                      // 如果剩下的最低位非零，则需要 1 位
+
+    return b + c + d + e + f + g + 1; // 总位数，加 1 是为了包括符号位
 }
 //float
 /* 

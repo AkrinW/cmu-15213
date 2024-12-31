@@ -2,3 +2,6 @@ id_rsa
 *.tar
 qtest
 *.o
+btest
+fshow
+ishow
