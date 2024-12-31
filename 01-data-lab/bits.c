@@ -286,7 +286,25 @@ int howManyBits(int x) {
  *   Rating: 4
  */
 unsigned floatScale2(unsigned uf) {
-  return 2;
+  // 32 = 1 + 8 + 23
+  int filter = 1 << 31;
+  int sign = uf & filter;
+  int val;
+
+  int exp = (((filter >> 8)^filter) & uf) >> 23; // 取指数位
+  if (!exp) {
+    return (uf << 1) | sign;// 指数为0，向指数为1转化
+  } 
+  if (exp == 255) {
+    return uf;
+  } 
+  ++exp;
+  if (exp == 255) {
+    return ((filter >> 8) ^filter) | sign; // 判断越界
+  }
+  // 取数值位
+  val = ~(filter >> 8) & uf;
+  return sign | (exp << 23) | val;
 }
 /* 
  * floatFloat2Int - Return bit-level equivalent of expression (int) f
@@ -301,7 +319,30 @@ unsigned floatScale2(unsigned uf) {
  *   Rating: 4
  */
 int floatFloat2Int(unsigned uf) {
-  return 2;
+  int filter = 1 << 31;
+  int exp = (((filter >> 8) ^ filter) & uf) >> 23;
+  int val, sign;
+  exp = exp - 127;
+  if (exp < 0) {
+    return 0;
+  }
+  if (exp > 31) {
+    return filter;
+  }
+  val = (~(filter >> 8) & uf) | (1 << 23);
+  if (exp > 23) {
+    val = val << (exp - 23);
+  } else {
+    val = val >> (23 - exp);
+  }
+  // 负数用补码
+  sign = filter & uf;
+  if (!sign) {
+    return val;
+  } else {
+    return ~val + 1;
+  }
+
 }
 /* 
  * floatPower2 - Return bit-level equivalent of the expression 2.0^x
@@ -317,5 +358,10 @@ int floatFloat2Int(unsigned uf) {
  *   Rating: 4
  */
 unsigned floatPower2(int x) {
-    return 2;
+  if (x > 127) {
+    return 0x7f800000;
+  } else if (x >= -126) {
+    return ((x+127) << 23);// bias = 127;
+  }
+  return 0;
 }
