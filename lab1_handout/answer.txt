@@ -1,0 +1,7 @@
+./start/free_the/university_center
+rmdir capture_the
+pineapple
+cat
+touch release.txt
+42
+free the university center stones we tried to release them but no one listened
