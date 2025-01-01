@@ -1,0 +1,131 @@
+act1
+gdb ./act1
+(gdb) r 1
+(gdb) info registers
+Q.  Given the information that GDB just stopped the program at the beginning
+    of a function taking one or more arguments, write down your best guess at the
+    purposes of the %rsp, %rdi, and %rax registers.
+
+%rsp Holds stack pointer, points to top of stack.
+%rdi Holds first argument. Historically, destination index.
+%rax Holds function return value. Historically, accumulator.
+
+(gdb) r 2
+AT&T prints OP SRC, DEST
+(gdb) c
+(gdb) disassemble squareInt
+Dump of assembler code for function squareInt:
+   0x00000000004009c3 <+0>:     mov    %edi,%eax
+   0x00000000004009c5 <+2>:     imul   %edi,%eax
+   0x00000000004009c8 <+5>:     ret  
+End of assembler dump.
+int squareInt(int x) {
+    return x * x;
+}
+
+(gdb) disassemble squareLInt
+Dump of assembler code for function squareLInt:
+   0x00000000004009c9 <+0>:     mov    %rdi,%rax
+   0x00000000004009cc <+3>:     imul   %rdi,%rax
+   0x00000000004009d0 <+7>:     ret    
+End of assembler dump.
+squareLInt used long ints, hence it accessed %rdi, which is 64 bits.
+squareInt used ints, hence it accessed %edi which is the lower 32 bits of %rdi.
+
+(gdb)  disassemble squareFloat
+Dump of assembler code for function squareFloat:
+   0x00000000004009d1 <+0>:     mulss  %xmm0,%xmm0
+   0x00000000004009d5 <+4>:     ret    
+End of assembler dump.
+squareFloat uses the %xmm0 register, a special purpose register for floatingpoint numbers.
+
+(gdb) r 3
+(gdb) disassemble whatIsThis
+Dump of assembler code for function whatIsThis:
+   0x00000000004008a1 <+0>:     mov    (%rdi),%edx
+   0x00000000004008a3 <+2>:     mov    (%rsi),%eax
+   0x00000000004008a5 <+4>:     mov    %edx,(%rsi)
+   0x00000000004008a7 <+6>:     mov    %eax,(%rdi)
+   0x00000000004008a9 <+8>:     ret    
+End of assembler dump.
+void whatIsThis(int *a, int *b) {
+    int temp = *a;  // 从地址 `a` 读取值
+    *a = *b;        // 将地址 `b` 的值写入到 `a`
+    *b = temp;      // 将临时变量的值写入到 `b`
+}
+(gdb) x/8d $rsp
+  This will dump the memory (x) containing eight (8) decimal integers ([%]d)
+  starting from the stack pointer ($rsp).
+0x7fffffffe110: 4196822 0       1       2
+0x7fffffffe120: -134229952      32767   4196939 0
+(gdb) q
+
+act2
+gdb ./act2
+(gdb) r s
+(gdb) disassemble viewThis
+Dump of assembler code for function viewThis:
+   0x0000000000400687 <+0>:     mov    0x4(%rdi),%eax
+   0x000000000040068a <+3>:     add    (%rdi),%eax
+   0x000000000040068c <+5>:     add    0x8(%rdi),%eax
+   0x000000000040068f <+8>:     add    0xc(%rdi),%eax
+   0x0000000000400692 <+11>:    ret    
+End of assembler dump.
+A displacement is an immediate added to a memory access.
+It is of the form: D(mem), so that the address accessed is D + mem.
+Please disassemble viewThis.
+Q.  What are the function's argument(s)?
+    A memory address.
+Q.  What is the return register of the function? 
+    %eax
+Q.  Which instruction(s) initialize the return register? 
+    mov    0x4(%rdi),%eax
+Q.  What does the function do?
+    The function adds the first four intss of a given array.
+    return a[0] + a[1] + a[2] + a[3];
+
+(gdb) r a
+The general form of a memory reference is D(B,I,S)
+(gdb) disassemble viewThisNext
+Dump of assembler code for function viewThisNext:
+   0x0000000000400693 <+0>:     mov    (%rdi,%rsi,4),%eax
+   0x0000000000400696 <+3>:     ret    
+End of assembler dump.
+(gdb) p/x &arr
+$1 = 0x602080
+Q.  What does this function do?
+    return arr[i];
+p lets you examine values of arbitrary C code within GDB.
+For example, p &arr shows the address where the array arr is located.
+x lets you print the memory contents of a specific address, 
+i.e. dereferences a specific address. 
+For example, x/8d &arr prints the first 8 entries of the array 
+located at the address specified by arr. 
+The d formatter specifies the type we want to view the array contents as,
+where d corresponds to decimal integers.
+
+(gdb) r L
+(gdb) disassemble viewThisL
+Dump of assembler code for function viewThisL:
+   0x0000000000400697 <+0>:     sub    $0x8,%rsp
+   0x000000000040069b <+4>:     lea    (%rdi,%rsi,4),%rdi
+   0x000000000040069f <+8>:     call   0x4004e0 <free@plt>
+   0x00000000004006a4 <+13>:    add    $0x8,%rsp
+   0x00000000004006a8 <+17>:    ret    
+End of assembler dump.
+(gdb) disassemble mx
+Dump of assembler code for function mx:
+   0x00000000004006a9 <+0>:     lea    (%rdi,%rdi,2),%rax
+   0x00000000004006ad <+4>:     shl    $0x2,%rax
+   0x00000000004006b1 <+8>:     ret    
+End of assembler dump.
+Q.  Write down the four parts of LEA's displacement-mode address.
+    0(%rdi,%rdi,2)
+Q.  After accounting for the left shift, what value does mx() multiply its argument by?
+    return 12 * x;
+
+act3
+head -n 8 act3.c
+gcc -Og -S act3.c
+gcc -Og -c act3.c
+objdump -d act3.o

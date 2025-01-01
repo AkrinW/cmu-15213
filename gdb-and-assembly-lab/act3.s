@@ -1,21 +1,44 @@
 	.file	"act3.c"
 	.text
 	.globl	mx
-	.def	mx;	.scl	2;	.type	32;	.endef
-	.seh_proc	mx
+	.type	mx, @function
 mx:
-	.seh_endprologue
-	leal	(%rcx,%rcx,2), %eax
-	sall	$2, %eax
+.LFB0:
+	.cfi_startproc
+	endbr64
+	leaq	(%rdi,%rdi,2), %rax
+	salq	$2, %rax
 	ret
-	.seh_endproc
+	.cfi_endproc
+.LFE0:
+	.size	mx, .-mx
 	.globl	addm
-	.def	addm;	.scl	2;	.type	32;	.endef
-	.seh_proc	addm
+	.type	addm, @function
 addm:
-	.seh_endprologue
-	leal	(%rcx,%rcx,2), %eax
-	leal	1(,%rax,4), %eax
+.LFB1:
+	.cfi_startproc
+	endbr64
+	call	mx
+	addq	$1, %rax
 	ret
-	.seh_endproc
-	.ident	"GCC: (MinGW-W64 x86_64-ucrt-posix-seh, built by Brecht Sanders, r3) 14.1.0"
+	.cfi_endproc
+.LFE1:
+	.size	addm, .-addm
+	.ident	"GCC: (Ubuntu 11.4.0-1ubuntu1~22.04) 11.4.0"
+	.section	.note.GNU-stack,"",@progbits
+	.section	.note.gnu.property,"a"
+	.align 8
+	.long	1f - 0f
+	.long	4f - 1f
+	.long	5
+0:
+	.string	"GNU"
+1:
+	.align 8
+	.long	0xc0000002
+	.long	3f - 2f
+2:
+	.long	0x3
+3:
+	.align 8
+4:
