@@ -1,0 +1,271 @@
+1.Why is JZ (jump if zero) the same instruction as JE (jump if equal)?
+    Remember that CMP sets the flags based on the result of subtracting its first argument
+from its second argument. If the two arguments to CMP are equal, the result of the
+subtraction will be zero, so ZF will be set and SF, OF, CF will be clear. Thus, “jump if
+ZF = 1” performs “jump if equal” when executed immediately after a CMP instruction.
+The alternative name JZ more accurately describes the behavior when this instruction
+comes immediately after a TEST instruction (see below).
+
+2.
+as jumps.S -o jumps.o
+objdump -d jumps.o
+
+jumps.o:     file format elf64-x86-64
+Disassembly of section .text:
+0000000000000000 <jump_insns>:
+   0:   eb 34                   jmp    36 <destination>
+   2:   70 32                   jo     36 <destination>
+   4:   71 30                   jno    36 <destination>
+   6:   72 2e                   jb     36 <destination>
+   8:   72 2c                   jb     36 <destination>
+   a:   72 2a                   jb     36 <destination>
+   c:   73 28                   jae    36 <destination>
+   e:   73 26                   jae    36 <destination>
+  10:   73 24                   jae    36 <destination>
+  12:   74 22                   je     36 <destination>
+  14:   74 20                   je     36 <destination>
+  16:   75 1e                   jne    36 <destination>
+  18:   75 1c                   jne    36 <destination>
+  1a:   76 1a                   jbe    36 <destination>
+  1c:   76 18                   jbe    36 <destination>
+  1e:   77 16                   ja     36 <destination>
+  20:   77 14                   ja     36 <destination>
+  22:   78 12                   js     36 <destination>
+  24:   79 10                   jns    36 <destination>
+  26:   7c 0e                   jl     36 <destination>
+  28:   7c 0c                   jl     36 <destination>
+  2a:   7d 0a                   jge    36 <destination>
+  2c:   7d 08                   jge    36 <destination>
+  2e:   7e 06                   jle    36 <destination>
+  30:   7e 04                   jle    36 <destination>
+  32:   7f 02                   jg     36 <destination>
+  34:   7f 00                   jg     36 <destination>
+
+0000000000000036 <destination>:
+  36:   c3                      ret  
+
+In the hexadecimal representation of machine code, shown to the left of each
+assembly instruction, when the mnemonic is the same, the first byte of the machine
+code is also always the same. For example:
+6: 72 2e jb 36 <destination>
+8: 72 2c jb 36 <destination>
+a: 72 2a jb 36 <destination>
+This byte of the machine code is the opcode (“operation code”): it identifies the
+instruction to the CPU. On the x86, the opcode is not always the first byte. The jump
+instructions happen to be short and simple.
+
+Problem 3. In the disassembly listing from the previous question, look at the second
+byte of each machine instruction. This is the part of the instruction that tells the CPU
+where to find the instruction that will be executed next (if the jump happens). Do
+you see a pattern to these bytes? What relationship is there among the address of
+“destination”, the address of each jump instruction, the length of each jump instruction,
+and the value of the second byte?
+
+Each second byte’s value is 2 less than the value of the previous instruction’s second
+byte. The last jump instruction in the list has a second byte whose value is zero.
+The second byte’s value is equal to the number of bytes in between the address
+of “destination” and the address of the first byte after the jump instruction. Put
+another way, it’s the value to add to %rip if the jump is taken. (For “microarchitectural”
+reasons—reasons having to do with how the CPU works internally—%rip always
+holds the address of the next instruction to execute, assuming the jump, if any, is not
+taken.)
+
+当前指令加上第二个字节的值，就是要执行的下一条指令的地址
+
+4.
+gdb ./cmp-set
+(gdb) r
+(gdb) disassemble sete
+Dump of assembler code for function sete:
+   0x0000000000401178 <+0>:     cmp    %si,%di
+   0x000000000040117b <+3>:     sete   %al
+   0x000000000040117e <+6>:     movzbl %al,%eax
+   0x0000000000401181 <+9>:     ret    
+End of assembler dump.
+(gdb) disassemble seta
+Dump of assembler code for function seta:
+   0x000000000040118c <+0>:     cmp    %si,%di
+   0x000000000040118f <+3>:     seta   %al
+   0x0000000000401192 <+6>:     movzbl %al,%eax
+   0x0000000000401195 <+9>:     ret    
+End of assembler dump.
+(gdb) disassemble setg
+Dump of assembler code for function setg:
+   0x0000000000401182 <+0>:     cmp    %si,%di
+   0x0000000000401185 <+3>:     setg   %al
+   0x0000000000401188 <+6>:     movzbl %al,%eax
+   0x000000000040118b <+9>:     ret    
+End of assembler dump.
+
+Based on the disassembly of sete, seta, and setg, which registers contain
+function arguments? Which register contains the return value?
+    arguments: %rsi, %rdi return: %rax
+
+5.  Call seta, and setg with each of the following pairs of values. Fill in the
+table.
+    Arg1    Arg2    setg    seta
+    0       0       0       0
+    0       1       0       0
+    1       0       1       1
+    −1      0       0       1
+    0       −1      1       0
+
+6. %rdi first, %rsi second, write setg() and seta()
+int setg(int a, int b) {
+    return a>b;
+}
+int seta(uint a, uint 6) {
+    return a>b;
+}
+
+7.
+gdb ./test-cmov
+(gdb) r
+(gdb) disassemble cmove
+Dump of assembler code for function cmove:
+   0x00000000004005b3 <+0>:     mov    $0x0,%eax
+   0x00000000004005b8 <+5>:     test   %di,%di
+   0x00000000004005bb <+8>:     cmove  %esi,%eax
+   0x00000000004005be <+11>:    ret    
+End of assembler dump.
+(gdb) disassemble cmovs
+Dump of assembler code for function cmovs:
+   0x00000000004005bf <+0>:     mov    $0x0,%eax
+   0x00000000004005c4 <+5>:     test   %di,%di
+   0x00000000004005c7 <+8>:     cmovs  %esi,%eax
+   0x00000000004005ca <+11>:    ret    
+End of assembler dump.
+(gdb) disassemble cmovc
+Dump of assembler code for function cmovc:
+   0x00000000004005cb <+0>:     mov    $0x0,%eax
+   0x00000000004005d0 <+5>:     test   %di,%di
+   0x00000000004005d3 <+8>:     cmovb  %esi,%eax
+   0x00000000004005d6 <+11>:    ret    
+End of assembler dump.
+
+Problem 7. In the disassembly of cmove, cmovs, and cmovc, what do you notice about
+the arguments to the TEST instruction?
+Both arguments are the same—TEST is being asked to set condition codes based
+on the bitwise AND of a register with itself. (This is actually more common than any
+other use of TEST. x & x == x for all x, so the condition codes are simply set based on
+the value of x.)
+用Test x x，只是单纯为了修改标志位符号
+Problem 8. For each of the following pairs of values, guess the return value of cmove.
+Check your guesses by calling cmove and fill in the table.
+    Arg1    Arg2    cmove
+    0       0       0
+    0       2       2
+    1       2       0
+    -1      2       0
+
+9.objdump -d loops.o
+loops.o:     file format elf64-x86-64
+Disassembly of section .text:
+0000000000000000 <forLoop>:
+   0:   ba 00 00 00 00          mov    $0x0,%edx
+   5:   b8 00 00 00 00          mov    $0x0,%eax
+   a:   39 f0                   cmp    %esi,%eax
+   c:   7d 0b                   jge    19 <forLoop+0x19>
+   e:   48 63 c8                movslq %eax,%rcx
+  11:   03 14 8f                add    (%rdi,%rcx,4),%edx
+  14:   83 c0 01                add    $0x1,%eax
+  17:   eb f1                   jmp    a <forLoop+0xa>
+  19:   89 d0                   mov    %edx,%eax
+  1b:   c3                      ret    
+000000000000001c <whileLoop>:
+  1c:   ba 00 00 00 00          mov    $0x0,%edx
+  21:   b8 00 00 00 00          mov    $0x0,%eax
+  26:   39 f0                   cmp    %esi,%eax
+  28:   7d 0b                   jge    35 <whileLoop+0x19>
+  2a:   48 63 c8                movslq %eax,%rcx
+  2d:   03 14 8f                add    (%rdi,%rcx,4),%edx
+  30:   83 c0 01                add    $0x1,%eax
+  33:   eb f1                   jmp    26 <whileLoop+0xa>
+  35:   89 d0                   mov    %edx,%eax
+  37:   c3                      ret    
+0000000000000038 <doWhileLoop>:
+  38:   ba 00 00 00 00          mov    $0x0,%edx
+  3d:   b8 00 00 00 00          mov    $0x0,%eax
+  42:   48 63 c8                movslq %eax,%rcx
+  45:   03 14 8f                add    (%rdi,%rcx,4),%edx
+  48:   83 c0 01                add    $0x1,%eax
+  4b:   39 f0                   cmp    %esi,%eax
+  4d:   7c f3                   jl     42 <doWhileLoop+0xa>
+  4f:   89 d0                   mov    %edx,%eax
+  51:   c3                      ret    
+
+10. Looking at the disassembled code for each loop, which register is used as
+the counter variable i? Which register is used for the len argument?
+    counter variable i: %rax, len argument: %rsi
+rax and rsi. Look for a register that’s being incremented by 1 each time around the
+loop and what’s being compared to drop out of the loop. (Caution: we used -Og mode
+to compile loops.o. With more aggressive optimization, like what you get with -O2,
+there might not be any such register.)
+
+11. If we hadn’t told you, and the names didn’t give it away, could you
+have known that forLoop’s C source contained a for loop and whileLoop’s C source
+contained a while loop? Why is the doWhileLoop’s source code different?
+while 和 for编译成了完全相同的循环，而do while会先执行一次
+
+12. switch
+switcher :
+    cmpq    $7 , %rdi
+    ja      .L2
+    jmp     *.L4(, %rdi , 8)
+.L7:
+    xorq    $15 , %rsi
+    movq    %rsi , %rdx
+.L3:
+    leaq    112(% rdx), %rdi
+    jmp     .L6
+.L5:
+    leaq    (%rdx , %rsi), %rdi
+    salq    $2 , %rdi
+    jmp     .L6
+.L2:
+    movq    %rsi , %rdi
+.L6:
+    movq %rdi , (% rcx)
+    ret
+
+    . section .rodata
+.L4:
+    .quad .L3
+    .quad .L2
+    .quad .L5
+    .quad .L2
+    .quad .L6
+    .quad .L7
+    .quad .L2
+    .quad .L5
+
+// %rdi = a and val , %rsi = b, %rdx = c, %rcx = dest
+void switcher (long a, long b, long c, long *dest) {
+    long val;
+    switch (a) {
+    case 5:
+        c = b ^ 15;
+    case 0:
+        val = c + 112;
+        break;
+    case 2:
+    case 7:
+        val = (c + b) << 2;
+        break;
+    case 4:
+        val = a;
+        break;
+    default :
+        val = b;
+    }
+    *dest = val;
+}
+
+The key to figuring out switch statements is to combine information from the assembly
+and the jump table to determine the different cases. The ja .L2 instruction tells us
+that .L2 is the default case, since all values not within 0 to 7 go to this case. We can
+then look in the table and see that values 1 and 3 also go to .L2, so they must not have
+case labels of their own. The value .L5 is also repeated in the jump table, which means
+this must correspond to the pair of case labels next to each other: 2 and 7. Then we
+match up the remaining labels with the remaining C cases. This problem is example
+3.31 in the textbook.
