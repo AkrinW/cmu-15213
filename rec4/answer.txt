@@ -1,0 +1,74 @@
+make
+gdb act1
+(gdb) break main
+(gdb) run 15213
+(gdb) continue
+(gdb) clear main
+(gdb) run 15213 // 执行完后会直接结束
+(gdb) disassemble main
+Dump of assembler code for function main:
+   0x0000000000401620 <+0>:     endbr64 
+   0x0000000000401624 <+4>:     push   %rbx
+   0x0000000000401625 <+5>:     movslq %edi,%rdi
+   0x0000000000401628 <+8>:     mov    %rsi,%rbx
+   0x000000000040162b <+11>:    xor    %eax,%eax
+   0x000000000040162d <+13>:    mov    -0x8(%rsi,%rdi,8),%rdx
+   0x0000000000401632 <+18>:    lea    0xad56f(%rip),%rsi        # 0x4aeba8
+   0x0000000000401639 <+25>:    mov    $0x1,%edi
+   0x000000000040163e <+30>:    call   0x449b90 <__printf_chk>
+   0x0000000000401643 <+35>:    movq   $0x0,(%rbx)
+   0x000000000040164a <+42>:    pop    %rbx
+   0x000000000040164b <+43>:    ret  
+End of assembler dump.
+(gdb) print (char*)[0x] // 打印地址中对应的内容
+(gdb) break main
+(gdb) run 239
+(gdb) print argv[1]
+$10 = 0x7fffffffe50c "239"
+(gdb) continue
+(gdb) quit
+
+gdb act2
+(gdb) break main
+(gdb) run
+(gdb) print/x $rsi // ‘/x’ means print in hexadecimal
+$1 = 0x7fffffffe278
+(gdb) print /x $rdi
+$2 = 0x1
+%rdi = argc
+(gdb) disassemble main
+Dump of assembler code for function main:
+=> 0x0000000000401590 <+0>:     endbr64 
+   0x0000000000401594 <+4>:     push   %rbx
+   0x0000000000401595 <+5>:     movslq %edi,%rdi
+   0x0000000000401598 <+8>:     mov    %rsi,%rbx
+   0x000000000040159b <+11>:    mov    -0x8(%rsi,%rdi,8),%rsi
+   0x00000000004015a0 <+16>:    lea    0x96a5d(%rip),%rdi        # 0x498004
+   0x00000000004015a7 <+23>:    call   0x4016e5 <stc>
+   0x00000000004015ac <+28>:    movq   $0x0,(%rbx)
+   0x00000000004015b3 <+35>:    pop    %rbx
+   0x00000000004015b4 <+36>:    ret    
+End of assembler dump.
+(gdb) break stc
+(gdb) continue
+Q. How could you view the arguments that have been passed to stc?
+(gdb) print/x $rsi
+(gdb) run 18213
+(gdb) continue  stc()
+(gdb) stepi
+(gdb) nexti
+(gdb) disassemble
+• Q. Where are the “=>” characters printed on the left side?
+    curstep
+
+gdb act3
+Q. Which register holds the return value from a function?
+    %rax
+• (gdb) disassemble compare
+• Q. Where is the return value set in compare?
+    %rax
+• (gdb) break compare
+• Now run act3 with two numbers
+• Q. Using nexti or stepi, how does the value in register %rbx change, 
+leading to the cmp instruction?
+    b = a+b+5
