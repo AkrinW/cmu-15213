@@ -1,0 +1,43 @@
+gcc -S lab3.c
+gcc -S lab3_helper.c
+gcc -c lab3.s
+gcc -c lab3_helper.s
+xxd lab3.o | less
+objdump -s lab3.o > objdumplab3.txt
+objdump -sdr lab3.o
+gcc -o lab3 lab3_helper.o lab3.o
+gcc -o lab3 lab3_helper.c lab3.c
+
+nooptimizaiton
+fib(25) = 75025
+clocks ticks: 34768810.000000 
+Time in seconds taken by CPU: 34.768810 
+    263  1596 12743 noptimization.txt
+
+gcc -O0 lab3.c lab3_helper.c -o optimization0
+$ objdump -d optimization0 > optimization0.txt
+
+optimization0
+clocks ticks: 35180953.000000 
+Time in seconds taken by CPU: 35.180953 
+    263   1596  12752 optimization0.txt
+
+optimization1
+clocks ticks: 11480795.000000 
+Time in seconds taken by CPU: 11.480795 
+    194   1155   9028 optimization1.txt
+
+optimization2
+clocks ticks: 2272887.000000 
+Time in seconds taken by CPU: 2.272887 
+    392   2478  19126 optimization2.txt
+
+optimization3
+clocks ticks: 2538566.000000 
+Time in seconds taken by CPU: 2.538566 
+    392   2478  19126 optimization3.txt
+
+optimizations
+clocks ticks: 2331288.000000 
+Time in seconds taken by CPU: 2.331288 
+    191   1112   8860 optimizations.txt
