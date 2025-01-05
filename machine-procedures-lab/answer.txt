@@ -1,0 +1,217 @@
+gdb --args ./calls
+(gdb) disassemble
+Dump of assembler code for function showStack:
+   0x00000000004011db <+0>:     push   $0x15213
+   0x00000000004011e0 <+5>:     int3   
+=> 0x00000000004011e1 <+6>:     pop    %rax
+   0x00000000004011e2 <+7>:     ret    
+End of assembler dump.
+
+1.
+(gdb) x/2gx $rsp
+0x7fffffffe110: 0x0000000000015213      0x000000000040117a
+
+2.What was the meaning of the second number on the stack?
+The second number on the stack is the function’s return address.
+
+3.What does the ret instruction do?
+ret pops from the top of the stack to %rip (incrementing %rsp by 8 bytes)
+rsp从118变到120了，增加了8byte
+(gdb) si
+0x00000000004011e2 in showStack ()
+(gdb) p $rsp
+$1 = (void *) 0x7fffffffe118
+(gdb) p $rip
+$2 = (void (*)()) 0x4011e2 <showStack+7>
+(gdb) si
+main (argc=<optimized out>, argv=<optimized out>) at machine-procedures/calls.c:148
+148     in machine-procedures/calls.c
+(gdb) p $rsp
+$3 = (void *) 0x7fffffffe120
+(gdb) p $rip
+$4 = (void (*)()) 0x40117a <main+48>
+
+4.  Given your answer to Problem 3, what must it be that call does?
+call pushes the value of %rip to the stack (decrementing %rsp by 8 bytes), then
+unconditionally branches (jumps) to the call address described by its operand.
+
+(gdb) disassemble returnOne
+Dump of assembler code for function returnOne:
+   0x00000000004011e7 <+0>:     mov    $0xffffffff,%edi
+   0x00000000004011ec <+5>:     call   0x401142 <abs>
+   0x00000000004011f1 <+10>:    ret    
+End of assembler dump.
+(gdb) disassemble abs
+Dump of assembler code for function abs:
+   0x0000000000401142 <+0>:     mov    %edi,%eax
+   0x0000000000401144 <+2>:     cltd   
+   0x0000000000401145 <+3>:     xor    %edx,%eax
+   0x0000000000401147 <+5>:     sub    %edx,%eax
+   0x0000000000401149 <+7>:     ret    
+End of assembler dump.
+(gdb) disassemble returnOneOpt
+Dump of assembler code for function returnOneOpt:
+   0x00000000004011f2 <+0>:     mov    $0xffffffff,%edi
+   0x00000000004011f7 <+5>:     jmp    0x401142 <abs>
+End of assembler dump.
+
+5. What special optimization of calls has been applied to returnOneOpt?
+Why does this optimization work for returnOneOpt? Can it be used for any call?
+    In returnOneOpt, the compiler saw that call abs would be followed immediately by
+ret, so it replaced both instructions with jmp abs. This is called “tail call” optimization.
+It works because the ret in the called function (abs) will have exactly the same effect
+that the ret removed from returnOneOpt would have had—restoring the stack to
+what it was before returnOneOpt was called and returning to returnOneOpt’s caller.
+This optimization cannot be used on every call—it only works when a call is followed
+immediately by a return. (Sometimes there can be a couple of stack adjustment
+instructions in between.) That’s why it’s called tail call optimization.
+
+gdb --args ./locals
+(gdb) disassemble seeArgs
+Dump of assembler code for function seeArgs:
+   0x0000000000401152 <+0>:     sub    $0x8,%rsp
+   0x0000000000401156 <+4>:     mov    $0x6,%r9d
+   0x000000000040115c <+10>:    mov    $0x5,%r8d
+   0x0000000000401162 <+16>:    mov    $0x4,%ecx
+   0x0000000000401167 <+21>:    mov    $0x3,%edx
+   0x000000000040116c <+26>:    mov    $0x2,%esi
+   0x0000000000401171 <+31>:    mov    $0x402016,%edi
+   0x0000000000401176 <+36>:    mov    $0x0,%eax
+   0x000000000040117b <+41>:    call   0x401050 <printf@plt>
+   0x0000000000401180 <+46>:    add    $0x8,%rsp
+   0x0000000000401184 <+50>:    ret    
+End of assembler dump.
+
+Problem 6. What is the type of the data seeArgs passes as the first argument to printf?
+(You should be able to answer this question based solely on what you already know
+about printf.) Given this, and what you saw when you followed the instructions up
+to this point, what does the GDB command x/s do?
+    The first argument of printf should always be a format string, which has type
+const char *. x/s prints out the C string found at the specified location in memory.
+(gdb) x/s $rdi
+0x7ffff7faaa70 <_IO_stdfile_1_lock>:    ""
+
+(gdb) disassemble seeMoreArgs
+Dump of assembler code for function seeMoreArgs:
+   0x0000000000401185 <+0>:     sub    $0x8,%rsp
+   0x0000000000401189 <+4>:     push   $0x8
+   0x000000000040118b <+6>:     push   $0x7
+   0x000000000040118d <+8>:     mov    $0x6,%r9d
+   0x0000000000401193 <+14>:    mov    $0x5,%r8d
+   0x0000000000401199 <+20>:    mov    $0x4,%ecx
+   0x000000000040119e <+25>:    mov    $0x3,%edx
+   0x00000000004011a3 <+30>:    mov    $0x2,%esi
+   0x00000000004011a8 <+35>:    mov    $0x402010,%edi
+   0x00000000004011ad <+40>:    mov    $0x0,%eax
+   0x00000000004011b2 <+45>:    call   0x401050 <printf@plt>
+   0x00000000004011b7 <+50>:    add    $0x18,%rsp
+   0x00000000004011bb <+54>:    ret    
+--Type <RET> for more, q to quit, c to continue without paging--
+End of assembler dump.
+
+7. When seeMoreArgs calls printf, where did the compiler place arguments
+7 and 8? Why do you think this happened?
+    Arguments 7 and 8 were pushed onto the stack in reverse order. This happened
+because the compiler ran out of integer argument registers.
+    调用前push了，存在栈里
+
+(gdb) disassemble getV
+Dump of assembler code for function getV:
+   0x00000000004011bc <+0>:     sub    $0x18,%rsp
+   0x00000000004011c0 <+4>:     movslq %edi,%rsi
+   0x00000000004011c3 <+7>:     mov    %rsp,%rdi
+   0x00000000004011c6 <+10>:    call   0x401284 <getValue>
+   0x00000000004011cb <+15>:    add    $0x18,%rsp
+   0x00000000004011cf <+19>:    ret    
+End of assembler dump.
+(gdb) disassemble getValue
+Dump of assembler code for function getValue:
+   0x0000000000401284 <+0>:     mov    (%rdi,%rsi,4),%eax
+   0x0000000000401287 <+3>:     ret    
+End of assembler dump.
+
+8. Where does the function getV allocate its array? How does it pass this
+location to getValue?
+    getV allocates its array on the stack. It passes this location to getValue by using a
+normal pointer stored in a standard argument register.
+
+(gdb) disassemble mult4
+Dump of assembler code for function mult4:
+   0x0000000000401250 <+0>:     push   %rbx
+   0x0000000000401251 <+1>:     push   %r12
+   0x0000000000401253 <+3>:     push   %r13
+   0x0000000000401255 <+5>:     mov    %edx,%r12d
+   0x0000000000401258 <+8>:     mov    %ecx,%r13d
+   0x000000000040125b <+11>:    call   0x40124a <mult2>
+   0x0000000000401260 <+16>:    mov    %r12d,%edi
+   0x0000000000401263 <+19>:    mov    %r13d,%esi
+   0x0000000000401266 <+22>:    mov    %eax,%ebx
+   0x0000000000401268 <+24>:    call   0x40124a <mult2>
+   0x000000000040126d <+29>:    mov    %eax,%edi
+   0x000000000040126f <+31>:    mov    %ebx,%esi
+   0x0000000000401271 <+33>:    call   0x40124a <mult2>
+   0x0000000000401276 <+38>:    pop    %r13
+   0x0000000000401278 <+40>:    pop    %r12
+   0x000000000040127a <+42>:    pop    %rbx
+   0x000000000040127b <+43>:    ret    
+End of assembler dump.
+(gdb) disassemble mult2
+Dump of assembler code for function mult2:
+   0x000000000040124a <+0>:     mov    %edi,%eax
+   0x000000000040124c <+2>:     imul   %esi,%eax
+   0x000000000040124f <+5>:     ret    
+End of assembler dump.
+
+9. Which registers are treated as call-preserved by mult4? Which register
+does mult4 expect to contain a return value? (It may help to disassemble mult2 as
+well.)
+    %rbx, %r12, and %r13 are call-preserved. %rax contains return values
+
+(gdb) disassemble mrec 
+Dump of assembler code for function mrec:
+   0x00000000004011d0 <+0>:     push   %rbx
+   0x00000000004011d1 <+1>:     mov    %edi,%ebx
+   0x00000000004011d3 <+3>:     cmp    $0x1,%edi
+   0x00000000004011d6 <+6>:     je     0x4011e5 <mrec+21>
+   0x00000000004011d8 <+8>:     lea    -0x1(%rdi),%edi
+   0x00000000004011db <+11>:    call   0x4011d0 <mrec>
+   0x00000000004011e0 <+16>:    imul   %ebx,%eax
+   0x00000000004011e3 <+19>:    pop    %rbx
+   0x00000000004011e4 <+20>:    ret    
+   0x00000000004011e5 <+21>:    mov    %edi,%eax
+   0x00000000004011e7 <+23>:    jmp    0x4011e3 <mrec+19>
+End of assembler dump.
+
+10. What does the function mrec do? 阶乘
+    mrec computes the factorial of its integer argument.
+
+gdb -args ./call
+(gdb) disassemble showStack
+Dump of assembler code for function showStack:
+   0x00000000004011db <+0>:     push   $0x15213
+   0x00000000004011e0 <+5>:     int3   
+=> 0x00000000004011e1 <+6>:     pop    %rax
+   0x00000000004011e2 <+7>:     ret    
+End of assembler dump.
+11. The first eight bytes of the stack contain the number 0x15213. What do
+you expect the first two bytes of the stack to contain?
+Logically, among the eight bytes there should be three with the values 0x01, 0x52,
+and 0x13, and the other five should all be zero. They could be in any order, but it would
+make sense for their order to relate somehow to the place value of the bits. . . and that’s
+as far as we can guess.
+(We did mention, briefly at the end of a previous class, the additional piece of
+information you need to answer this question, but you might have missed it.)
+    8个字节，怎么存$0x15213? $0x00015213 或者$0x13520100
+(gdb) x/2xb $rsp
+0x7fffffffe110: 0x13    0x52
+
+12. Check your hypothesis by running x/2xb $rsp. What did the first two
+bytes of the stack contain? What can you deduce about the order in which each
+integer’s bytes are stored?
+We see the bytes 0x13 and 0x52 — each integer’s bytes are stored least significant to
+most significant.
+    栈内是倒序存储的。但是需要考虑的是，栈是从上往下递减的，而打印时，总是从当前往上增
+e116    0x00
+e114    0x01
+e112    0x52
+e110    0x13    所以按照从上往下读的顺序又是正常的。
