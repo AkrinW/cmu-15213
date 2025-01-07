@@ -1,0 +1,296 @@
+gdb ./data-layout
+
+1. This function has a 32-bit integer local variable:
+int returnOne (void) {
+    int local = -1;
+    return abs(local);
+}
+Disassemble returnOne and notice where local is stored. Now, what if we needed
+to take the address of local? What problem might we run into, and what do you
+expect the compiler to do about it?
+The variable local is stored in register %edi. The problem is, registers do not have
+addresses. If the code took the address of local, the compiler would have to store the
+variable on the stack, instead of keeping it in a register.
+(gdb) disassemble returnOne
+Dump of assembler code for function returnOne:
+   0x0000000000400581 <+0>:     sub    $0x8,%rsp
+   0x0000000000400585 <+4>:     mov    $0xffffffff,%edi
+   0x000000000040058a <+9>:     call   0x400613 <abs>
+   0x000000000040058f <+14>:    add    $0x8,%rsp
+   0x0000000000400593 <+18>:    ret    
+End of assembler dump.
+// 在简单的函数里，local直接存在寄存器里，如果要取地址，编译器在编译时把它放到stack上。
+
+(gdb) disassemble returnOneTwo
+Dump of assembler code for function returnOneTwo:
+   0x0000000000400594 <+0>:     sub    $0x18,%rsp
+   0x0000000000400598 <+4>:     movl   $0xffffffff,0xc(%rsp)
+   0x00000000004005a0 <+12>:    lea    0xc(%rsp),%rdi
+   0x00000000004005a5 <+17>:    call   0x40061f <absp>
+   0x00000000004005aa <+22>:    add    $0x18,%rsp
+   0x00000000004005ae <+26>:    ret    
+End of assembler dump.
+
+2. Test your expectation from Problem 1 by disassembling the function
+returnOneTwo. Its code is something like this:
+int returnOneTwo (void) {
+    int local = -1;
+    return absp(/* ??? */);
+}
+Based on what you see, what do you think the declaration (prototype) of absp is?
+    extern int absp(int *p);
+
+int courses [4] = {0x15213, 0x15513, 0x18213, 0x18600};
+3. Examine this array’s memory layout:
+    (gdb) x/4wx courses
+0x601110 <courses>:     0x00015213      0x00015513      0x00018213      0x00018600
+Also examine the disassembly of the function getNth, which accesses an array of
+integers:
+int getNth(int *arr, size_t index) {
+    return arr[index];
+}
+(gdb) disassemble getNth
+Dump of assembler code for function getNth:
+   0x00000000004005af <+0>:     mov    (%rdi,%rsi,4),%eax
+   0x00000000004005b2 <+3>:     ret    
+End of assembler dump.
+
+What is the stride of an array of int (the number of bytes occupied by each entry)?
+    4 bytes.
+The stride does not appear in the C code for getNth. Does it appear in the
+disassembly? If so, describe how it is used, in terms of the C-level variables.
+    Yes, it does. The compiler multiplies index by the stride, before adding it to the
+pointer arr, to get the address of the Nth element of the array being accessed. This
+is necessary because memory is byte addressable; that is, every memory address
+corresponds to an individual byte, even if it’s only holding part of a wider value.
+
+A while ago we told you that strings in C are “just” arrays of characters. ‘c’ontinue
+execution of the program now. It will stop inside a function that receives a string as an
+argument. Print the string with this command:
+(gdb) x/s $rdi
+0x4007f8:       "15213 CSAPP"
+Print it out again, as an array of bytes, using this command:
+(gdb) x/12bx $rdi
+0x4007f8:       0x31    0x35    0x32    0x31    0x33    0x20    0x43    0x53
+0x400800:       0x41    0x50    0x50    0x00
+
+4. There’s no information in any of the registers that says how long the string
+pointed to by %rdi is. How does the x/s command know how long it is?
+There is a NUL character (ASCII character code 0, often written ’\0’) at the end of
+every C string. To find out how long the string is, you have to scan the string, counting
+bytes, until you reach the NUL
+
+struct course {
+    int cs_ugrad;
+    int cs_grad;
+    int ece_ugrad;
+    int ece_grad;
+};
+
+5. Dump out the contents of the struct course * that was passed to the
+current function using this command:
+(gdb) x/4wx $rdi
+0x601100 <course>:      0x00015213      0x00015513      0x00018213      0x00018600
+Did you notice anything familiar about the layout?
+The layout to this 4 integer struct looks the same as the layout of the 4 integer array
+from Problem 3.
+在汇编视角里的表达式都是一样的。
+
+struct increasing {
+    char a;
+    short b;
+    int c;
+    long d;
+};
+Suppose you had an instance of struct increasing whose fields were
+initialized to 0x0a, 0x0b0b, 0x0c0c0c0c, and 0x0d0d0d0d0d0d0d0d, respectively. The
+table below has boxes for 32 bytes, which should be more than enough to hold a
+struct increasing. Write, in each box, what value (‘a’, ‘b’, ‘c’, or ‘d’) you think will
+be in each byte. If you think a byte will be unused, leave it blank.
+0x00    0x0a    0       0x0b    0x0b    0x0c    0x0c    0x0c    0x0c
+0x08    0x0d    0x0d    0x0d    0x0d    0x0d    0x0d    0x0d    0x0d
+0x10
+0x18
+(gdb) x/4wx $rdi
+0x6010e0 <increasing>:  0x0b0b000a      0x0c0c0c0c      0x0d0d0d0d      0x0d0d0d0d
+
+    The fields of a struct need to be aligned. Any “scalar” field (not an array or a nested
+struct) must be located at an offset (from the beginning of the struct) that is a multiple
+of its size. The C compiler cannot change the order of fields within a struct, so instead,
+to give all the fields the alignment they need, it inserts padding in between the fields.
+In the case of struct increasing, there needs to be one byte of padding before b but
+then the math works out neatly so that c and d get the alignment they need without
+any additional padding.
+注意第一个地址存的顺序是相反的。但是c++中不会直接通过地址取struct中不同的变量，所以没影响
+
+7. Now consider this struct, which has the same fields as struct increasing,
+but with the fields in a different order.
+struct rearranged {
+    char a;
+    long b;
+    short c;
+    int d;
+};
+Will this type take up more or less space than struct increasing?
+    This type will take up more space because the order of its elements produces more
+padding.
+
+8. The function GDB is currently stopped in received a pointer to a struct
+rearranged as its second argument. Use this to check your answer to Problem 7 and
+fill in the table below with the layout
+(gdb) x/4wx $rsi
+0x6010a0 <rearranged>:  0x0000000a      0x00000000      0x0b0b0b0b      0x0b0b0b0b
+大量浪费
+(gdb) x/4wx 0x6010b0
+0x6010b0 <rearranged+16>:       0x00000c0c      0x0d0d0d0d      0x00000000      0x00000000
+(gdb) x/4wx $rsi+16
+0x6010b0 <rearranged+16>:       0x00000c0c      0x0d0d0d0d      0x00000000      0x00000000
+
+struct pair {
+    int large;
+    char small;
+};
+struct pair pairs [2] = {
+    {0 xabababab , 0x1},
+    {0 xcdcdcdcd , 0x2}
+};
+
+9. What stride do you expect this array to have? 8 bytes
+(gdb) x/16bx &pairs
+0x601080 <pairs>:       0xab    0xab    0xab    0xab    0x01    0x00    0x00    0x00
+0x601088 <pairs+8>:     0xcd    0xcd    0xcd    0xcd    0x02    0x00    0x00    0x00
+10. Check your guess:
+(gdb) x/16 bx &pairs
+What stride did the array actually have? 8 bytes
+Where did the compiler insert padding, if any? After smal
+Why did it need to do that?
+    Padding after small makes struct pair’s size be a multiple of 4. That’s necessary
+so that the second element of the array will have an address that’s a multiple of 4,
+satisfying the alignment requirement of large. In general, a struct will always be
+padded at the end to make its size a multiple of the alignment required by its fields.
+    为了让struct对齐，struct内需要和最长的对齐。
+
+Conversely, structs can contain arrays. In this case, the struct will be aligned to the
+width of the array’s element type. Here’s an example:
+struct triple {
+    short large [2];
+    char small;
+};
+Problem 11. How will this struct’s size compare to that of pair?
+    This struct is smaller, since it requires less padding. Both have elements whose total
+size is 5 bytes. pair is aligned to the width of int (4 bytes), so it gets padded to a
+length of 8. triple is only aligned to the width of short, (2 bytes), so it only gets
+padded to a length of 6.
+数组只需要和数组单个的长度对齐就行了。不需要把整条数组对齐
+
+int8_t nested[2][3] = {{0x00, 0x01, 0x02}, {0x10, 0x11, 0x12}};
+You’ll probably want a command such as:
+(gdb) x/6bx &nested
+0x601076 <nested>:      0x00    0x01    0x02    0x10    0x11    0x12
+
+Problem 12. What stride do the “inner” arrays have? 1 bytes
+How about the “outer” ones? 3 bytes
+Problem 13. Disassemble the function access. Take note of how array strides are
+embedded in its assembly code. Here is its source code:
+int8_t access(int8_t (*arr)[3], size_t row, size_t column) {
+    return arr[row][column];
+}
+(gdb) disassemble access
+Dump of assembler code for function access:
+   0x00000000004005b5 <+0>:     lea    (%rsi,%rsi,2),%rax
+   0x00000000004005b9 <+4>:     add    %rax,%rdi
+   0x00000000004005bc <+7>:     movzbl (%rdi,%rdx,1),%eax
+   0x00000000004005c0 <+11>:    ret    
+End of assembler dump.
+return %rdi + 3%rsi + %rdx;
+
+This function is designed to be used with an array like nested. Could it also be used
+with an array declared like this: int8_t flipped[3][2]?
+    No, the dimensions (specifically, the outer stride) do not match. So the compiler
+will not be able to access the fields of the array correctly.
+
+14. Now, experiment with GDB commands to examine the layout of this
+multi-dimensional array, which is structured differently:
+    int8_t first[3] = {0x00, 0x01, 0x02};
+    int8_t second[3] = {0x10, 0x11, 0x12};
+    int8_t *multilevel[2] = {first, second};
+(If you need a hint, ‘c’ontinue the program and read what it prints.) What stride does
+the outer array have this time? 8 bytes
+(gdb) x/3bx first
+0x601073 <first>:       0x00    0x01    0x02
+(gdb) x/3bx second
+0x601070 <second>:      0x10    0x11    0x12
+(gdb) x/16bx multilevel
+0x601060 <multilevel>:  0x73    0x10    0x60    0x00    0x00    0x00    0x00    0x00
+0x601068 <multilevel+8>:        0x70    0x10    0x60    0x00    0x00    0x00    0x00    0x00
+
+Problem 15. An accessor for this type of 2-D array appears below; note the subtle
+difference in its signature. Disassemble it to see what a difference this makes!
+int8_t accessMultilevel(int8_t **arr , size_t row, size_t column) {
+    return arr[row][column];
+}
+(gdb) disassemble accessMultilevel
+Dump of assembler code for function accessMultilevel:
+   0x00000000004005c1 <+0>:     add    (%rdi,%rsi,8),%rdx
+   0x00000000004005c5 <+4>:     movzbl (%rdx),%eax
+   0x00000000004005c8 <+7>:     ret    
+End of assembler dump.
+Do you think this function would still be useful if first and second each had 4
+elements? How about if they had two different lengths?
+This function would still work because its assembly does not use the lengths of
+first and second.
+8倍的是指针长度。
+
+Problem 16. Imagine if we had instead defined multilevel as:
+int8_t *multilevel[2] = {first, first};
+What effect would we observe if we modified an element of first?
+The modification would be observable via both multilevel[0] and multilevel[1].
+
+When multi-byte data is stored in byte-addressable memory, it becomes possible to
+observe it two different ways: as a single “word” (multi-byte unit), or as a sequence of
+bytes. Given int x, for instance, the hardware must consistently treat ((char *)&x)[0]
+as some specific 8-bit subset of the 32-bit int. This has given rise to a sometimes
+heated debate over endianness, the rule for which part of a number should “come first”
+in memory. Should it be the 8 bits with the highest place value (“big-endian”) or the 8
+bits with the lowest place value (“little-endian”)?
+
+Problem 17. To see a demonstration of endianness in action, let’s look back at the
+courses global variable. (Recall that it is an array of 32-bit integers.) Run this GDB
+command:
+(gdb) x/4wx & courses
+(gdb) x/4wx &courses
+0x601110 <courses>:     0x00015213      0x00015513      0x00018213      0x00018600
+    That command interprets every consecutive 4 bytes of the array as a single integer.
+But what happens if we ask GDB to print each byte individually? Run this command:
+(gdb) x/16bx &courses
+0x601110 <courses>:     0x13    0x52    0x01    0x00    0x13    0x55    0x01    0x00
+0x601118 <courses+8>:   0x13    0x82    0x01    0x00    0x00    0x86    0x01    0x00
+    Stare carefully at that mess until you have convinced yourself that it really is the
+same data you saw before! The reason it looks different is that x86-64 is a little-endian
+architecture: it stores the lowest-order bits of a wide type in the byte with the lowest
+memory address.
+What disadvantage of little-endian did you just observe?
+    Little endianness is harder to read in a byte-by-byte memory dump, because it is the
+opposite of the way we write numbers on paper—we could say that our conventional
+notation for large numbers, e.g. “123 456 789”, is big-endian. When debugging, this
+means you must transpose the bytes of a memory dump in your head, or know
+debugger commands that do it for you.
+
+Problem 18. Now let’s look at an advantage of little-endian byte order. Disassemble
+the function narrowingCast. Its C source code looks like this:
+int narrowingCast (long *num) {
+    return (int) *num;
+}
+(gdb) disassemble narrowingCast
+Dump of assembler code for function narrowingCast:
+   0x00000000004005c9 <+0>:     mov    (%rdi),%eax
+   0x00000000004005cb <+2>:     ret    
+End of assembler dump.
+How would the assembly of this function differ if x86-64 were a big-endian architec-
+ture?
+    We would have mov 4(%rdi), %eax instead of mov (%rdi), %eax.
+在类型从大转换到小时，需要移动4byte。
+
+    Little-endian byte order means the address of an integer’s lowest bits is the same as
+the address of the complete integer. This means we can truncate integers simply by
+reading fewer bytes from the same memory address.
