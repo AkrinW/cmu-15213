@@ -1,0 +1,247 @@
+Let’s look back at the example in Lecture 1:
+typedef struct {
+    int a[2];
+    double d;
+} struct_t;
+double fun(int i) {
+    volatile struct_t s;
+    s.d = 3.14;
+    s.a[i] = 1073741824; /* Possibly out of bounds */
+    return s.d;
+}
+Problem 1. Where is the struct allocated in the system?
+    stack.
+Problem 2. What critical value is pushed onto the stack for every function call?
+    return address
+Problem 3. The s.a[i] line is writing to memory. In lecture 1, fun(6) crashed the
+program. Why did writing to this location cause the process to crash?
+    the return address is overwrote.
+
+There are many routines in C that take in user input. We will briefly explore one of the
+simplest, gets(), and how this routine has security vulnerabilities.
+char *gets(char *dest)
+{
+    int c = getchar ();
+    char *p = dest;
+    // EOF indicates there is no further input.
+    while (c != EOF && c != '\n') {
+        *p++ = c;
+        c = getchar ();
+    }
+    *p = '\0';
+    return dest;
+}
+Problem 4. In C, do we know how much space has been allocated to *dest?
+    dont know.
+Problem 5. Given that getchar() reads one character from stdin, when does gets()
+stop reading in input?
+    receive EOF or '\n'.
+Problem 6. Do the terminating conditions for gets() have any relation to the input
+buffer?
+    no. do not depend on the size of the input buffer.
+
+In the following section, we will be investigating how the following routine, intended
+for echoing user input back to the screen (using puts to print the string), may exhibit
+unintended behavior.
+00000000004006cf <echo>:
+4006cf: 48 83 ec 18     sub $0x18,%rsp
+4006d3: 48 89 e7        mov %rsp,%rdi
+4006d6: e8 a5 ff ff ff  call 400680 <gets>
+4006db: 48 89 e7        mov %rsp,%rdi
+4006de: e8 3d fe ff ff  call 400520 <puts>
+4006e3: 48 83 c4 18     add $0x18,%rsp
+4006e7: c3              ret
+Problem 7. How much space is allocated on the stack in echo()?
+    24 byte.
+Problem 8. Assume echo() allocates a char buffer on the stack. What is the largest
+that this buffer could have been, in the C source code?
+    24 byte.
+Problem 9. In the following stack diagram, label the type of each region of memory or
+leave it blank if it is unknown. Before the call to gets(), %rsp has the value 0x414140.
++0x28   echo's stack
++0x20   echo's stack
++0x18   0x4006db
++0x10   buffer
++0x08   buffer
++0x00   buffer  ← $rsp = 0x414140
+
+10. While the echo() function is running, you type in the following string:
+123456781234567812345678@AA
+Fill in the following stack diagram with the new values. (Use the characters from the
+string, except use _ to indicate a byte that is unchanged and 0 to indicate a byte with
+numeric value zero.)
++0x28
++0x20
++0x18   @ a a 00 _ _ _ _
++0x10   1 2 3 4 5 6 7 8
++0x08   1 2 3 4 5 6 7 8
++0x00   1 2 3 4 5 6 7 8← $rsp = 0x414140
+
+Note, while the compiled code must follow the Linux x64 ABI, that is not a requirement
+of the system and exploits can ignore these conventions to achieve the desired behavior.
+We will see how the simple stack overwrite from the previous section can do more
+than just crash the program.
+
+Problem 11. Based on the previous stack diagram and input, and assuming that any
+bytes of the return address that were not overwritten by gets were zero to begin with,
+write down the flow of execution starting with the return from gets in echo. Note:
+ASCII encodes @ as 0x40 and A as 0x41. Watch out for endianness!
+    After gets() returns, the program will jump to the address 0x41414140. Since 
+this is a part of the buffer containing arbitrary ASCII data, the program will attempt
+to execute that data as if it were machine code, leading to unintended behavior
+
+Problem 12. When does this flow differ from the original execution path?
+The exploit string “returned” execution to the stack. Currently, execution would
+attempt to use the ASCII string as instructions.
+    The flow of execution differs from the original path when the return address gets
+overwritten by the input string. In the original execution, after the call to gets(),
+the return address would point to the instruction after gets(), and the program would
+continue executing normally. However, with the buffer overflow, the return address is
+overwritten by part of the input string, and instead of returning to the caller, the
+execution jumps to an address that contains the string @AA, causing the program to treat
+the string as executable instructions.
+    In this case, the string @AA becomes part of the instruction stream, which the CPU
+will attempt to execute, leading to undefined behavior or potential exploitation.
+
+Problem 13. Suppose you wanted to make 0xdecafbad the return value. Write the
+assembly to do so.
+    0xb8 0xad 0xfb 0xca 0xde
+Problem 14. The bytes for the instruction(s) you need are: 0xb8 0xad 0xfb 0xca 0xde.
+Where would those bytes be placed in our input string to execute them?
+    end.
+Processes include a copy of the C standard library, which contains the functionality
+to open a shell and thereby run arbitrary code. Most exploits, then, aim to invoke the
+appropriate function. In our example, we took the first step in running arbitrary code.
+
+System designers have come up with many countermeasures to reduce program
+vulnerabilities. We will review several of these approaches here.
+
+Problem 15. fgets() has the following type signature; why is it safer than gets()?
+char *fgets(char *s, int size , FILE *stream );
+    check buffer size.
+Problem 16. Previously, the last characters of the exploit string were carefully chosen.
+What would happen if the stack were somewhere else in memory?
+    attack will failed.
+Problem 17. The OS decides where to place the stack in memory. How could we
+minimize the chance that the exploit guessed the right address?
+    add random offeset. ASLR地址空间布局随机
+So far, the program has trusted that its stack is uncorrupted. The compiler can put a
+“canary” value on the stack to detect if the stack is modified. The following assembly
+includes the canary instructions, denoted by *.
+The register fs is special. It always holds a pointer, and it is accessed differently than
+other registers. The assembly operand %fs:0x28 means the same thing as 0x28(%fs)
+would if fs were a normal register (but it isn’t, and you can’t write it that way).
+The function __stack_chk_fail terminates the program.
+40072f: sub $0x18,%rsp
+* 400733: mov %fs:0x28,%rax
+* 40073c: mov %rax,0x8(%rsp)
+* 400741: xor %eax,%eax
+400743: mov %rsp,%rdi
+400746: call 4006e0 <gets>
+40074b: mov %rsp,%rdi
+40074e: call 400570 <puts@plt>
+* 400753: mov 0x8(%rsp),%rax
+* 400758: xor %fs:0x28,%rax
+* 400761: jz 400768 <echo+0x39>
+* 400763: call 400580 <__stack_chk_fail>
+400768: add $0x18,%rsp
+40076c: ret
+
+5/7Machine Advanced
+5 Defense
+System designers have come up with many countermeasures to reduce program
+vulnerabilities. We will review several of these approaches here.
+Problem 15. fgets() has the following type signature; why is it safer than gets()?
+char *fgets(char *s, int size , FILE *stream );
+Problem 16. Previously, the last characters of the exploit string were carefully chosen.
+What would happen if the stack were somewhere else in memory?
+Problem 17. The OS decides where to place the stack in memory. How could we
+minimize the chance that the exploit guessed the right address?
+So far, the program has trusted that its stack is uncorrupted. The compiler can put a
+“canary” value on the stack to detect if the stack is modified. The following assembly
+includes the canary instructions, denoted by *.
+The register fs is special. It always holds a pointer, and it is accessed differently than
+other registers. The assembly operand %fs:0x28 means the same thing as 0x28(%fs)
+would if fs were a normal register (but it isn’t, and you can’t write it that way).
+The function __stack_chk_fail terminates the program.
+40072f: sub $0x18,%rsp
+* 400733: mov %fs:0x28,%rax
+* 40073c: mov %rax,0x8(%rsp)
+* 400741: xor %eax,%eax
+400743: mov %rsp,%rdi
+400746: call 4006e0 <gets>
+40074b: mov %rsp,%rdi
+40074e: call 400570 <puts@plt>
+* 400753: mov 0x8(%rsp),%rax
+* 400758: xor %fs:0x28,%rax
+* 400761: jz 400768 <echo+0x39>
+* 400763: call 400580 <__stack_chk_fail>
+400768: add $0x18,%rsp
+40076c: ret
+Problem 18. Write pseudo-code for the canary instructions.
+function protect_stack_with_canary():
+    // Store the canary value at a specific memory location in the fs register.
+    canary = load_value_from_fs_at_offset(0x28)
+
+    // Save the canary value onto the stack.
+    save_to_stack(canary)
+
+    // Do the usual function work (such as calling gets, etc.)
+    call_gets()
+    call_puts()
+
+    // After execution, check if the canary is unchanged.
+    loaded_canary = load_from_stack_offset(0x8)
+    if canary != loaded_canary:
+        // If the canary has been modified, something went wrong.
+        call_stack_check_fail()
+    else:
+        // If the canary is unchanged, continue execution.
+        continue_execution()
+Problem 19. What would happen if we used our earlier exploit string with this revised
+assembly?
+    attack will be defense by canary.
+Problem 20. (Optional) What costs (memory, time, instructions, etc.) are associated
+with this revised assembly
+    The program becomes more complex due to the added canary checking logic. This may
+increase the chances of bugs during development and debugging, as developers need to
+ensure that the canary-related code functions correctly across all edge cases.
+Summary of Costs:
+    Memory: Slight increase in memory usage (for storing the canary).
+    Time: Minor performance overhead due to the extra load/store and comparison
+instructions.
+    Instructions: Additional assembly instructions for saving/loading the canary and
+checking it.
+    Security: Greatly improved security against buffer overflow exploits.
+The added security features, while incurring some overhead, are generally a small price
+to pay for preventing potentially dangerous buffer overflow attacks.
+
+64-bit x86 adds a no-execute bit that is commonly applied to the stack. However, the
+stack is still writable by user input, and the process must still allow the C standard
+library to be executable.
+The new restrictions have led to the increased prevalence of return-oriented pro-
+gramming (ROP) attacks, in which the attacker searches the executable for preexisting
+“gadgets” with parts of the desired assembly sequence.
+Problem 21. How did we initially transfer control to our code in the exploit before?
+    overwriting the return address on the stack.
+Problem 22. In the following assembly, the middle section shows the machine code
+for the assembly sequence to its right.
+<setval>:
+4004d0: c7 07 d4 48 89 c7 movl $0xc78948d4,(%rdi)
+4004d6: c3                ret
+What byte value corresponds to a return instruction?
+    c3
+Problem 23. mov %rax, %rdi is encoded as 48 89 c7. At what address does that
+byte sequence exist in the following assembly?
+    no address
+Problem 24. If the value on the top of the stack was the address in the previous
+question, and a return instruction was executed, describe the steps of the subsequent
+execution.
+    jump to mov %rax, %rdi. another function.
+Problem 25. Why is it important that each gadget ends with a ret instruction?
+    Each gadget ends with a ret instruction because it allows the attacker to transfer
+control seamlessly to the next gadget.
+    The attacker doesn't need to inject new code.
+    In short, the ret instruction is what allows the attacker to continue chaining
+gadgets together, forming a sequence of actions that ultimately achieves their malicious
+goal, whether it’s gaining control of the system or executing arbitrary code.
