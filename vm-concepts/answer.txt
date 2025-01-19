@@ -1,0 +1,151 @@
+make addrs
+./addrs
+Problem 1. What do you notice about the addresses printed by the two processes?
+    same addresses
+Problem 2. Do you think the processes share the same memory? Explain why this
+either must be or cannot be the case.
+    no 
+
+make large
+./large
+System has 3.79 GB of main memory and 1.00 GB of swap
+Allocated 31641 GB
+mmap failed after allocating 131070 GB: Cannot allocate memory
+System has 3.79 GB of main memory and 1.00 GB of swap
+Allocated and read 146 GB
+Allocated and read 403 GB
+Allocated and read 642 GB
+Allocated and read 740 GB
+Allocated and read 780 GB
+Allocated and read 835 GB
+Allocated and read 850 GB
+Allocated and read 896 GB
+Allocated and read 1130 GB
+Allocated and read 1288 GB
+Allocated and read 1313 GB
+Allocated and read 1374 GB
+Allocated and read 1417 GB
+Allocated and read 1448 GB
+Allocated and read 1471 GB
+Allocated and read 1490 GB
+Allocated and read 1491 GB
+Allocated and read 1528 GB
+Allocated and read 1611 GB
+Allocated and read 1670 GB
+Allocated and read 1729 GB
+Allocated and read 1745 GB
+Allocated and read 1751 GB
+Allocated and read 1752 GB
+killed
+./large write
+System has 3.79 GB of main memory and 1.00 GB of swap
+Allocated and wrote 2 GB
+Killed
+Problem 6. What do you think is going on here?
+    virtual memory can allocate much more to read, but can't write so much.
+
+make timings
+./timings
+calloc():
+        call:   129 microseconds
+        loop 1:  52 microseconds
+        loop 2:  86 microseconds
+        sum:    267 microseconds
+
+mmap():
+        call:     7 microseconds
+        loop 1: 106 microseconds
+        loop 2: 142 microseconds
+        sum:    255 microseconds
+
+Problem 7. Both calloc and mmap allocate a block of zero-initialized memory. Which
+call takes less time?
+    calloc()
+Problem 8. Which memory region is faster for the application to access, the first time
+it does this?
+    mmap()
+Problem 9. Which memory region is faster for the application to access, the second
+time it does this?
+    mmap()
+Problem 10. What do these things imply about the work being done by calloc versus
+mmap?
+    mmap() use lazy allocate and higher efficient.
+Problem 11. Could cache misses alone account for this time difference?
+    calloc() allocate mem, no cache miss, slow call and quick run
+
+make faults
+./faults
+calloc():
+        call:   26 page faults
+        loop 1:  0 page faults
+        loop 2:  0 page faults
+        sum:    26 page faults
+
+mmap():
+        call:    0 page faults
+        loop 1: 25 page faults
+        loop 2:  0 page faults
+        sum:    25 page faults
+Problem 12. Which allocation call results in more page faults?
+    calloc()
+Problem 13. Which memory region incurs more page faults upon initial access?
+    mmap()
+Problem 14. Compare the numbers you get from faults with the numbers you get
+from timings. Do the different numbers of page faults explain the different timings?
+    the difference in the number of page faults can explain the differences in timings.
+calloc() front-loads the cost of page faults, while mmap() defers it to the first
+access, distributing the cost across the program execution.
+
+make bounds
+./bounds
+Page fault at offset 0x00000 (    0)
+Page fault at offset 0x01000 ( 4096)
+Page fault at offset 0x02000 ( 8192)
+Page fault at offset 0x03000 (12288)
+Problem 15. Looking at the output, how large is each page? How does this compare
+to the size of a cache line (64 B)?
+    This means that a single page can contain 64 cache lines.
+Problem 16. Below is a diagram of the 64 bits of a virtual memory address. Bit 0 is the
+least significant bit. Label this diagram to show which bits are part of the page offset
+and which are part of the page number
+    Since the page size is 4 KB, the offset within a page requires log2(4096)=​12 bits.
+Thus, the least significant 12 bits of the virtual address represent the page offset.
+    +------------------------------------------------------------+
+    | Page Number (52 bits)                  | Page Offset (12 bits) |
+    +------------------------------------------------------------+
+    | 63                                     12                   0 |
+
+./invalid
+Segmentation fault (core dumped)
+(gdb) r
+Starting program: /root/cmu-15213/vm-concepts/invalid 
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+
+Program received signal SIGSEGV, Segmentation fault.
+0x00005555555551fa in main () at invalid.c:16
+16              array[index] = (char)('a' + index % 26);
+Problem 17. What happens when you run it? Which array index is the problem?
+    Segmentation fault. array[8192]
+Problem 18. What is special about the address of this array (non-)element? (Hint:
+mmap always returns page-aligned allocations.)
+Page alignment:
+    The address of the array (array) is allocated using mmap, which returns a 
+page-aligned address. This means the starting address is aligned to the system's 
+page size, typically 4 KB (4096 bytes).
+    The allocation size (LENGTH) is 8192 bytes, which is exactly two pages. Therefore:
+The memory region spans two pages: from array[0] to array[8191]. array[8192] is on the
+first byte of the next (unallocated) page. Accessing it triggers a segmentation fault
+because that page is not mapped in memory.
+Problem 19. As you’ve probably already experienced, the OS cannot always detect
+out-of-bounds memory accesses. There are at least two ways you could change this
+program that would make it appear to run normally but would not actually fix the bug.
+Can you think of them?
+for (int index = 0; index < LENGTH; ++index)
+    array[index] = (char)('a' + index % 26);
+
+make protected
+./protected rwx
+Reading... success!
+Writing... success!
+Executing... success!
